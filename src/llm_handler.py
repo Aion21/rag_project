@@ -19,21 +19,20 @@ class LLMHandler:
         if not OPENAI_API_KEY or OPENAI_API_KEY == "your_openai_api_key_here":
             raise ValueError("Must set OPENAI_API_KEY in .env file")
 
-        # Устанавливаем переменную окружения для OpenAI
+        # Set OpenAI API key
         os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
-        # МИНИМАЛЬНАЯ инициализация без ВСЕХ дополнительных параметров
+        # Initialize LLM
         try:
             self.llm = ChatOpenAI(
                 model=OPENAI_MODEL or "gpt-3.5-turbo"
-                # ТОЛЬКО model - никаких других параметров!
             )
             logger.info(f"✅ LLM initialized successfully with model: {OPENAI_MODEL}")
         except Exception as e:
             logger.error(f"❌ Error initializing LLM: {e}")
-            # Fallback с только базовыми настройками
+            # Fallback with default settings
             try:
-                self.llm = ChatOpenAI()  # Вообще без параметров
+                self.llm = ChatOpenAI()
                 logger.info("✅ LLM initialized with default settings")
             except Exception as e2:
                 logger.error(f"❌ Fallback also failed: {e2}")
@@ -111,28 +110,67 @@ Answer the question using only the provided information from the documents.
 
     def generate_response_stream(self, query: str, relevant_docs: List[Tuple[Document, float]]):
         """
-        Generate response in streaming mode - упрощенная версия без streaming
+        Generate response in REAL streaming mode from OpenAI
         """
         try:
-            logger.info(f"[LLM STREAM] Starting generation for {len(relevant_docs)} documents")
+            logger.info(f"[LLM STREAM] Starting REAL streaming for {len(relevant_docs)} documents")
 
             if not relevant_docs:
                 yield "Sorry, I couldn't find relevant documents to answer your question."
                 return
 
-            # Генерируем полный ответ
-            full_response = self.generate_response(query, relevant_docs)
+            # Prepare context from documents
+            context = self._prepare_context(relevant_docs)
 
-            # Имитируем streaming, разделяя ответ на части
-            words = full_response.split()
-            accumulated = ""
+            # Create prompt
+            user_prompt = f"""
+CONTEXT FROM DOCUMENTS:
+{context}
 
-            for i, word in enumerate(words):
-                accumulated += word + " "
-                if i % 5 == 0 or i == len(words) - 1:  # Каждые 5 слов или последнее слово
-                    yield accumulated.strip()
+USER QUESTION:
+{query}
 
-            logger.info("[LLM STREAM] Generation completed successfully")
+Answer the question using only the provided information from the documents.
+"""
+
+            # Create messages
+            messages = [
+                SystemMessage(content=self.system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+
+            logger.info("[LLM STREAM] Starting real streaming from OpenAI...")
+
+            # Generate response
+            accumulated_response = ""
+            chunk_count = 0
+
+            try:
+                # Use stream generator
+                for chunk in self.llm.stream(messages):
+                    chunk_count += 1
+                    if hasattr(chunk, 'content') and chunk.content:
+                        accumulated_response += chunk.content
+                        yield accumulated_response
+
+                    # Log every 10 chunks
+                    if chunk_count % 10 == 0:
+                        logger.info(f"[LLM STREAM] Received {chunk_count} chunks...")
+
+            except Exception as stream_error:
+                logger.error(f"[LLM STREAM] Streaming failed: {stream_error}")
+                # Fallback на обычную генерацию
+                logger.info("[LLM STREAM] Falling back to regular generation...")
+                full_response = self.generate_response(query, relevant_docs)
+                yield full_response
+                return
+
+            logger.info(f"[LLM STREAM] Streaming completed with {chunk_count} chunks")
+
+            # Add source information at the end
+            sources_info = self._format_sources_info(relevant_docs)
+            final_response = accumulated_response + f"\n\n{sources_info}"
+            yield final_response
 
         except Exception as e:
             logger.error(f"[LLM STREAM] Error in streaming generation: {e}")

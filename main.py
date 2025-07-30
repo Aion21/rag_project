@@ -284,7 +284,7 @@ def main():
 
     logger.info(f"Starting Gradio interface on port {GRADIO_PORT}")
 
-    # Запуск с базовыми настройками для Gradio 3.x
+    # Launch Gradio interface
     interface.launch(
         share=GRADIO_SHARE,
         server_port=GRADIO_PORT,

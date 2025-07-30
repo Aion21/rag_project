@@ -14,128 +14,144 @@ logger = logging.getLogger(__name__)
 class VectorStore:
     def __init__(self):
         """
-        Инициализация векторного хранилища ChromaDB
+        Initialize ChromaDB vector store
         """
-        self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+        try:
+            self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+            logger.info(f"✅ Embedding model {EMBEDDING_MODEL} loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Error loading embedding model: {e}")
+            raise
 
-        # Настройка ChromaDB
-        self.client = chromadb.PersistentClient(
-            path=CHROMA_DB_PATH,
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
+        # Setup ChromaDB
+        try:
+            self.client = chromadb.PersistentClient(
+                path=CHROMA_DB_PATH,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
             )
-        )
+            logger.info(f"✅ ChromaDB client initialized at {CHROMA_DB_PATH}")
+        except Exception as e:
+            logger.error(f"❌ Error initializing ChromaDB: {e}")
+            raise
 
-        # Создание или получение коллекции
+        # Create or get collection
         try:
             self.collection = self.client.get_collection(COLLECTION_NAME)
-            logger.info(f"Коллекция '{COLLECTION_NAME}' найдена")
+            logger.info(f"✅ Collection '{COLLECTION_NAME}' found")
         except:
             self.collection = self.client.create_collection(
                 name=COLLECTION_NAME,
-                metadata={"description": "RAG документы"}
+                metadata={"description": "RAG documents"}
             )
-            logger.info(f"Создана новая коллекция '{COLLECTION_NAME}'")
+            logger.info(f"✅ Created new collection '{COLLECTION_NAME}'")
 
     def add_documents(self, documents: List[Document]) -> None:
         """
-        Добавляет документы в векторное хранилище
+        Add documents to vector store
         """
         if not documents:
-            logger.warning("Нет документов для добавления")
+            logger.warning("No documents to add")
             return
 
-        logger.info(f"Добавляем {len(documents)} документов в векторное хранилище...")
+        logger.info(f"Adding {len(documents)} documents to vector store...")
 
-        # Подготовка данных для ChromaDB
-        texts = []
-        metadatas = []
-        ids = []
+        # Prepare data for ChromaDB in batches
+        batch_size = 100  # Процессим батчами для больших коллекций
 
-        for i, doc in enumerate(documents):
-            texts.append(doc.page_content)
-            metadatas.append(doc.metadata)
-            ids.append(f"doc_{i}_{hash(doc.page_content)}")
+        for i in range(0, len(documents), batch_size):
+            batch = documents[i:i + batch_size]
 
-        # Создание эмбеддингов
-        logger.info("Создание эмбеддингов...")
-        embeddings = self.embedding_model.encode(texts).tolist()
+            texts = []
+            metadatas = []
+            ids = []
 
-        # Добавление в ChromaDB
-        try:
-            self.collection.add(
-                documents=texts,
-                metadatas=metadatas,
-                ids=ids,
-                embeddings=embeddings
-            )
-            logger.info(f"✅ Успешно добавлено {len(documents)} документов")
-        except Exception as e:
-            logger.error(f"Ошибка при добавлении документов: {e}")
-            raise
+            for j, doc in enumerate(batch):
+                texts.append(doc.page_content)
+                metadatas.append(doc.metadata)
+                # Создаем уникальный ID
+                doc_id = f"doc_{i + j}_{hash(doc.page_content) % 1000000}"
+                ids.append(doc_id)
+
+            # Create embeddings
+            logger.info(f"Creating embeddings for batch {i // batch_size + 1}...")
+            try:
+                embeddings = self.embedding_model.encode(texts).tolist()
+            except Exception as e:
+                logger.error(f"Error creating embeddings: {e}")
+                continue
+
+            # Add to ChromaDB
+            try:
+                self.collection.add(
+                    documents=texts,
+                    metadatas=metadatas,
+                    ids=ids,
+                    embeddings=embeddings
+                )
+                logger.info(f"✅ Added batch {i // batch_size + 1} ({len(batch)} documents)")
+            except Exception as e:
+                logger.error(f"Error adding batch to ChromaDB: {e}")
+                continue
+
+        logger.info(f"✅ Successfully processed {len(documents)} documents")
 
     def search_similar_documents(self, query: str, k: int = SEARCH_K) -> List[Tuple[Document, float]]:
         """
-        Поиск похожих документов по запросу
+        Search for similar documents by query
         """
         try:
-            # Создание эмбеддинга для запроса
+            # Create embedding for query
             query_embedding = self.embedding_model.encode([query]).tolist()
 
-            # Поиск в ChromaDB
+            # Search in ChromaDB
             results = self.collection.query(
                 query_embeddings=query_embedding,
                 n_results=k,
                 include=['documents', 'metadatas', 'distances']
             )
 
-            # Преобразование результатов
+            # Convert results
             similar_docs = []
             if results['documents'] and results['documents'][0]:
-                logger.info(f"Обрабатываем {len(results['documents'][0])} результатов поиска")
+                logger.info(f"Processing {len(results['documents'][0])} search results")
 
                 for i in range(len(results['documents'][0])):
                     doc = Document(
                         page_content=results['documents'][0][i],
                         metadata=results['metadatas'][0][i]
                     )
-                    # ChromaDB возвращает cosine distance
+
+                    # ChromaDB returns cosine distance (0 = identical, 2 = completely different)
                     distance = results['distances'][0][i]
 
-                    # Отладка - логируем расстояния
+                    # Преобразуем distance в similarity score (0-1, где 1 = максимальное сходство)
+                    # Для косинусного расстояния: similarity = 1 - (distance / 2)
+                    # Но ограничиваем минимум 0
+                    similarity = max(0, 1 - (distance / 2))
+
                     filename = results['metadatas'][0][i].get('filename', 'unknown')
-                    logger.info(f"Документ {filename}: distance={distance:.4f}")
-
-                    # Исправленное преобразование cosine distance в similarity
-                    # Для cosine distance обычно от 0 (идентичные) до 2 (противоположные)
-                    # Но ChromaDB может возвращать нормализованные значения от 0 до 1
-
-                    if distance <= 1.0:
-                        # Если distance от 0 до 1, то similarity = 1 - distance
-                        similarity = 1.0 - distance
-                    else:
-                        # Если distance больше 1, нормализуем: similarity = 1 - (distance / 2)
-                        similarity = max(0.0, 1.0 - (distance / 2.0))
-
-                    # Дополнительная проверка: если similarity все еще 0, используем инвертированный distance
-                    if similarity == 0.0 and distance > 0:
-                        similarity = 1.0 / (1.0 + distance)
-
-                    logger.info(f"Документ {filename}: distance={distance:.4f} -> similarity={similarity:.4f}")
+                    logger.info(f"Document {filename}: distance={distance:.4f} -> similarity={similarity:.4f}")
 
                     similar_docs.append((doc, similarity))
 
-            logger.info(f"Найдено {len(similar_docs)} похожих документов")
+            logger.info(f"Found {len(similar_docs)} similar documents")
+
+            # Sort by similarity (highest first)
+            similar_docs.sort(key=lambda x: x[1], reverse=True)
+            logger.info("Documents sorted by similarity (highest first)")
+
             return similar_docs
 
         except Exception as e:
-            logger.error(f"Ошибка при поиске документов: {e}")
+            logger.error(f"Error searching documents: {e}")
             return []
 
     def get_collection_info(self) -> dict:
         """
-        Получение информации о коллекции
+        Get collection information
         """
         try:
             count = self.collection.count()
@@ -145,28 +161,33 @@ class VectorStore:
                 "embedding_model": EMBEDDING_MODEL
             }
         except Exception as e:
-            logger.error(f"Ошибка при получении информации о коллекции: {e}")
-            return {}
+            logger.error(f"Error getting collection info: {e}")
+            return {
+                "name": COLLECTION_NAME,
+                "document_count": 0,
+                "embedding_model": EMBEDDING_MODEL
+            }
 
     def clear_collection(self) -> None:
         """
-        Очистка коллекции
+        Clear collection
         """
         try:
-            # Удаляем текущую коллекцию
+            # Delete current collection
             self.client.delete_collection(COLLECTION_NAME)
-            # Создаем новую пустую коллекцию
+            # Create new empty collection
             self.collection = self.client.create_collection(
                 name=COLLECTION_NAME,
-                metadata={"description": "RAG документы"}
+                metadata={"description": "RAG documents"}
             )
-            logger.info("Коллекция очищена")
+            logger.info("✅ Collection cleared")
         except Exception as e:
-            logger.error(f"Ошибка при очистке коллекции: {e}")
+            logger.error(f"Error clearing collection: {e}")
+            raise
 
     def document_exists(self, doc_hash: str) -> bool:
         """
-        Проверка существования документа по хешу
+        Check if document exists by hash
         """
         try:
             results = self.collection.get(ids=[f"doc_hash_{doc_hash}"])
