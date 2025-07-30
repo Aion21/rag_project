@@ -19,20 +19,21 @@ class LLMHandler:
         if not OPENAI_API_KEY or OPENAI_API_KEY == "your_openai_api_key_here":
             raise ValueError("Must set OPENAI_API_KEY in .env file")
 
-        # Set OpenAI API key
+        # Устанавливаем переменную окружения для OpenAI
         os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
-        # Initialize LLM
+        # МИНИМАЛЬНАЯ инициализация без ВСЕХ дополнительных параметров
         try:
             self.llm = ChatOpenAI(
                 model=OPENAI_MODEL or "gpt-3.5-turbo"
+                # ТОЛЬКО model - никаких других параметров!
             )
             logger.info(f"✅ LLM initialized successfully with model: {OPENAI_MODEL}")
         except Exception as e:
             logger.error(f"❌ Error initializing LLM: {e}")
-            # Fallback with default settings
+            # Fallback с только базовыми настройками
             try:
-                self.llm = ChatOpenAI()
+                self.llm = ChatOpenAI()  # Вообще без параметров
                 logger.info("✅ LLM initialized with default settings")
             except Exception as e2:
                 logger.error(f"❌ Fallback also failed: {e2}")
@@ -45,9 +46,10 @@ RULES:
 1. Use ONLY information from the provided documents to answer
 2. If information is insufficient, honestly say so, but remain friendly
 3. Do NOT mention technical details (score, relevance, metadata)
-4. Be accurate, but friendly and understandable
-5. If there is contradictory information in the documents, mention it diplomatically
-6. Give comprehensive and useful answers based on the found information
+4. Do NOT mention or cite source files, document names, or where information came from
+5. Be accurate, but friendly and understandable
+6. If there is contradictory information in the documents, mention it diplomatically
+7. Give comprehensive and useful answers based on the found information
 
 COMMUNICATION STYLE:
 - Friendly and professional
@@ -58,7 +60,8 @@ COMMUNICATION STYLE:
 RESPONSE FORMAT:
 - Give a direct and useful answer to the question
 - Add context and details from documents
-- Sources will be added automatically - don't mention them in the main text
+- DO NOT mention sources, files, or document names
+- Answer as if you naturally know this information
 """
 
     def generate_response(self, query: str, relevant_docs: List[Tuple[Document, float]]) -> str:
@@ -93,12 +96,8 @@ Answer the question using only the provided information from the documents.
             logger.info("Generating response with LLM...")
             response = self.llm.invoke(messages)
 
-            # Get main response
+            # Get main response WITHOUT adding sources
             response_text = response.content
-
-            # ALWAYS add source information
-            sources_info = self._format_sources_info(relevant_docs)
-            response_text += f"\n\n{sources_info}"
 
             logger.info(f"Response generated, length: {len(response_text)} characters")
 
@@ -141,19 +140,19 @@ Answer the question using only the provided information from the documents.
 
             logger.info("[LLM STREAM] Starting real streaming from OpenAI...")
 
-            # Generate response
+            # НАСТОЯЩИЙ streaming от OpenAI
             accumulated_response = ""
             chunk_count = 0
 
             try:
-                # Use stream generator
+                # Используем stream метод LangChain
                 for chunk in self.llm.stream(messages):
                     chunk_count += 1
                     if hasattr(chunk, 'content') and chunk.content:
                         accumulated_response += chunk.content
                         yield accumulated_response
 
-                    # Log every 10 chunks
+                    # Логируем каждые 10 чанков
                     if chunk_count % 10 == 0:
                         logger.info(f"[LLM STREAM] Received {chunk_count} chunks...")
 
@@ -167,10 +166,9 @@ Answer the question using only the provided information from the documents.
 
             logger.info(f"[LLM STREAM] Streaming completed with {chunk_count} chunks")
 
-            # Add source information at the end
-            sources_info = self._format_sources_info(relevant_docs)
-            final_response = accumulated_response + f"\n\n{sources_info}"
-            yield final_response
+            # DON'T add source information in streaming mode
+            # Just return the clean response
+            logger.info("[LLM STREAM] Generation completed successfully")
 
         except Exception as e:
             logger.error(f"[LLM STREAM] Error in streaming generation: {e}")

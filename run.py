@@ -1,48 +1,48 @@
 #!/usr/bin/env python3
 """
-Скрипт для быстрого запуска RAG системы
+Quick launch script for RAG system
 """
 
 import sys
 import os
 from pathlib import Path
 
-# Добавляем корневую папку в PYTHONPATH
+# Add root folder to PYTHONPATH
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 
 def check_environment():
-    """Проверяет готовность окружения"""
-    print("🔍 Проверка окружения...")
+    """Checks environment readiness"""
+    print("🔍 Checking environment...")
 
-    # Проверка .env файла
+    # Check .env file
     env_file = project_root / ".env"
     if not env_file.exists():
-        print("❌ Файл .env не найден!")
-        print("📝 Скопируйте .env.example в .env и добавьте ваш OpenAI API ключ")
+        print("❌ .env file not found!")
+        print("📝 Copy .env.example to .env and add your OpenAI API key")
         return False
 
-    # Проверка папки data
+    # Check data folder
     data_dir = project_root / "data"
     if not data_dir.exists():
-        print("📁 Создаем папку data/...")
+        print("📁 Creating data/ folder...")
         data_dir.mkdir(exist_ok=True)
 
-    # Проверка папки chroma_db
+    # Check chroma_db folder
     chroma_dir = project_root / "chroma_db"
     if not chroma_dir.exists():
-        print("📁 Создаем папку chroma_db/...")
+        print("📁 Creating chroma_db/ folder...")
         chroma_dir.mkdir(exist_ok=True)
 
-    print("✅ Окружение готово!")
+    print("✅ Environment ready!")
     return True
 
 
 def main():
-    """Основная функция запуска"""
+    """Main launch function"""
     print("""
-    🤖 RAG Система с ChromaDB
+    🤖 RAG System with ChromaDB
     ========================
     """)
 
@@ -50,18 +50,18 @@ def main():
         sys.exit(1)
 
     try:
-        print("🚀 Запуск системы...")
+        print("🚀 Starting system...")
         from main import main as run_main
         run_main()
     except KeyboardInterrupt:
-        print("\n👋 Система остановлена пользователем")
+        print("\n👋 System stopped by user")
     except ImportError as e:
-        print(f"❌ Ошибка импорта: {e}")
-        print("💡 Убедитесь, что все зависимости установлены:")
+        print(f"❌ Import error: {e}")
+        print("💡 Make sure all dependencies are installed:")
         print("   conda activate rag_project")
         print("   pip install -r requirements.txt")
     except Exception as e:
-        print(f"❌ Ошибка запуска: {e}")
+        print(f"❌ Launch error: {e}")
         sys.exit(1)
 
 

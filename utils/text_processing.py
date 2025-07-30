@@ -9,22 +9,22 @@ logger = logging.getLogger(__name__)
 
 class TextProcessor:
     """
-    Утилиты для обработки текста
+    Utils for text processing
     """
 
     @staticmethod
     def clean_text(text: str) -> str:
         """
-        Очищает текст от лишних символов и нормализует
+        Clean text
         """
         if not text:
             return ""
 
-        # Удаляем лишние пробелы и переносы строк
+        # Delete newlines
         text = re.sub(r'\s+', ' ', text)
         text = text.strip()
 
-        # Удаляем специальные символы, но оставляем знаки препинания
+        # Delete special characters
         text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)\[\]\{\}\"\']+', '', text)
 
         return text
@@ -32,18 +32,18 @@ class TextProcessor:
     @staticmethod
     def extract_keywords(text: str, min_length: int = 3) -> List[str]:
         """
-        Извлекает ключевые слова из текста
+        Get keywords from text
         """
         if not text:
             return []
 
-        # Приводим к нижнему регистру и разбиваем на слова
+        # Change to lowercase
         words = re.findall(r'\b\w+\b', text.lower())
 
-        # Фильтруем по длине
+        # Filter by length
         keywords = [word for word in words if len(word) >= min_length]
 
-        # Удаляем дубликаты, сохраняя порядок
+        # Delete duplicates
         seen = set()
         unique_keywords = []
         for word in keywords:
@@ -56,7 +56,7 @@ class TextProcessor:
     @staticmethod
     def get_text_stats(text: str) -> Dict[str, int]:
         """
-        Получает статистику текста
+        Get text stats
         """
         if not text:
             return {
@@ -66,16 +66,16 @@ class TextProcessor:
                 "paragraphs": 0
             }
 
-        # Подсчет символов
+        # Symbol count
         characters = len(text)
 
-        # Подсчет слов
+        # Word count
         words = len(re.findall(r'\b\w+\b', text))
 
-        # Подсчет предложений
+        # Sentence count
         sentences = len(re.findall(r'[.!?]+', text))
 
-        # Подсчет абзацев
+        # Paragraph count
         paragraphs = len([p for p in text.split('\n\n') if p.strip()])
 
         return {
@@ -88,7 +88,7 @@ class TextProcessor:
     @staticmethod
     def truncate_text(text: str, max_length: int = 1000, add_ellipsis: bool = True) -> str:
         """
-        Обрезает текст до указанной длины
+        Cut text to max length
         """
         if not text or len(text) <= max_length:
             return text
@@ -96,9 +96,9 @@ class TextProcessor:
         truncated = text[:max_length]
 
         if add_ellipsis:
-            # Находим последний пробел, чтобы не разрывать слова
+            # Find the last space before max_length
             last_space = truncated.rfind(' ')
-            if last_space > max_length * 0.8:  # Если пробел не слишком далеко
+            if last_space > max_length * 0.8:
                 truncated = truncated[:last_space]
             truncated += "..."
 
@@ -108,14 +108,14 @@ class TextProcessor:
     def highlight_keywords(text: str, keywords: List[str],
                            start_tag: str = "**", end_tag: str = "**") -> str:
         """
-        Выделяет ключевые слова в тексте
+        Highlight keywords in text
         """
         if not text or not keywords:
             return text
 
         result = text
         for keyword in keywords:
-            # Создаем паттерн для поиска слова как отдельного слова
+            # Create a regex pattern to match the keyword
             pattern = r'\b' + re.escape(keyword) + r'\b'
             replacement = f"{start_tag}{keyword}{end_tag}"
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
@@ -125,19 +125,19 @@ class TextProcessor:
     @staticmethod
     def similarity_score(text1: str, text2: str) -> float:
         """
-        Простой расчет схожести текстов на основе общих слов
+        Simple similarity score between two texts
         """
         if not text1 or not text2:
             return 0.0
 
-        # Получаем множества слов для каждого текста
+        # Get unique words
         words1 = set(re.findall(r'\b\w+\b', text1.lower()))
         words2 = set(re.findall(r'\b\w+\b', text2.lower()))
 
         if not words1 or not words2:
             return 0.0
 
-        # Вычисляем коэффициент Жаккара
+        # Calculate intersection and union
         intersection = len(words1.intersection(words2))
         union = len(words1.union(words2))
 

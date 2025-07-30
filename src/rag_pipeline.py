@@ -14,169 +14,169 @@ logger = logging.getLogger(__name__)
 class RAGPipeline:
     def __init__(self):
         """
-        Инициализация RAG пайплайна
+        Initialize the RAG pipeline
         """
         self.document_loader = DocumentLoader()
         self.vector_store = VectorStore()
         self.llm_handler = LLMHandler()
 
-        logger.info("RAG Pipeline инициализирован")
+        logger.info("RAG Pipeline initialized")
 
     def load_documents(self, data_path: str = DATA_PATH) -> dict:
         """
-        Загружает документы из указанной папки в векторную базу данных
+        Load documents from specified folder into vector database
         """
         try:
-            logger.info(f"Начинаем загрузку документов из: {data_path}")
+            logger.info(f"Starting document loading from: {data_path}")
 
-            # Проверяем существование папки
+            # Check if folder exists
             if not Path(data_path).exists():
                 return {
                     "success": False,
-                    "message": f"Папка {data_path} не существует",
+                    "message": f"Folder {data_path} does not exist",
                     "documents_loaded": 0
                 }
 
-            # Загружаем документы
+            # Load documents
             documents = self.document_loader.load_documents_from_directory(data_path)
 
             if not documents:
                 return {
                     "success": False,
-                    "message": "Не найдено документов для загрузки",
+                    "message": "No documents found for loading",
                     "documents_loaded": 0
                 }
 
-            # Добавляем в векторное хранилище
+            # Add to vector store
             self.vector_store.add_documents(documents)
 
-            # Получаем информацию о коллекции
+            # Get collection info
             collection_info = self.vector_store.get_collection_info()
 
             return {
                 "success": True,
-                "message": f"Успешно загружено {len(documents)} документов/чанков",
+                "message": f"Successfully loaded {len(documents)} documents/chunks",
                 "documents_loaded": len(documents),
                 "total_in_collection": collection_info.get("document_count", 0)
             }
 
         except Exception as e:
-            logger.error(f"Ошибка при загрузке документов: {e}")
+            logger.error(f"Error loading documents: {e}")
             return {
                 "success": False,
-                "message": f"Ошибка при загрузке: {str(e)}",
+                "message": f"Loading error: {str(e)}",
                 "documents_loaded": 0
             }
 
     def query(self, user_question: str, k: int = SEARCH_K) -> str:
         """
-        Обрабатывает пользовательский запрос через RAG пайплайн
+        Process user query through RAG pipeline
         """
         try:
             if not user_question.strip():
-                return "Пожалуйста, задайте вопрос."
+                return "Please ask a question."
 
-            logger.info(f"Обрабатываем запрос: {user_question}")
+            logger.info(f"Processing query: {user_question}")
 
-            # Проверяем, является ли это общим приветствием или вопросом
+            # Check if this is a general greeting or question
             general_queries = self._is_general_query(user_question.lower())
 
-            # Поиск релевантных документов
+            # Search for relevant documents
             relevant_docs = self.vector_store.search_similar_documents(
                 query=user_question,
                 k=k
             )
 
-            # ОТЛАДКА - логируем найденные документы
-            logger.info(f"Найдено документов: {len(relevant_docs)}")
+            # DEBUG - log found documents
+            logger.info(f"Found documents: {len(relevant_docs)}")
             for i, (doc, score) in enumerate(relevant_docs):
-                logger.info(f"Документ {i + 1}: {doc.metadata.get('filename', 'unknown')} (score: {score:.3f})")
+                logger.info(f"Document {i + 1}: {doc.metadata.get('filename', 'unknown')} (score: {score:.3f})")
 
-            # Если это общий вопрос и нет релевантных документов, отвечаем дружелюбно
+            # If this is a general question and no relevant documents, respond friendly
             if general_queries and (
                     not relevant_docs or not any(score >= SIMILARITY_THRESHOLD for _, score in relevant_docs)):
                 return self._handle_general_query(user_question)
 
             if not relevant_docs:
-                return "Я специализируюсь на ответах по документам в вашей базе знаний. Попробуйте задать вопрос о содержимом ваших документов."
+                return "I specialize in answering questions based on documents in your knowledge base. Try asking a question about the content of your documents."
 
-            # Фильтруем документы по порогу релевантности
+            # Filter documents by relevance threshold
             filtered_docs = [
                 (doc, score) for doc, score in relevant_docs
                 if score >= SIMILARITY_THRESHOLD
             ]
 
-            # ОТЛАДКА - логируем фильтрацию
-            logger.info(f"Порог релевантности: {SIMILARITY_THRESHOLD}")
-            logger.info(f"Документов после фильтрации: {len(filtered_docs)}")
+            # DEBUG - log filtering
+            logger.info(f"Relevance threshold: {SIMILARITY_THRESHOLD}")
+            logger.info(f"Documents after filtering: {len(filtered_docs)}")
             for i, (doc, score) in enumerate(filtered_docs):
-                logger.info(f"Прошел фильтр {i + 1}: {doc.metadata.get('filename', 'unknown')} (score: {score:.3f})")
+                logger.info(f"Passed filter {i + 1}: {doc.metadata.get('filename', 'unknown')} (score: {score:.3f})")
 
             if not filtered_docs:
-                # Если документы есть, но не релевантны - даем дружелюбный ответ
+                # If documents exist but not relevant - give friendly response
                 logger.warning(
-                    f"Все документы отфильтрованы! Лучший score: {relevant_docs[0][1] if relevant_docs else 'N/A'}")
-                return "Я не нашел достаточно релевантной информации в ваших документах для этого вопроса. Попробуйте переформулировать запрос или задать более конкретный вопрос по содержимому ваших файлов."
+                    f"All documents filtered out! Best score: {relevant_docs[0][1] if relevant_docs else 'N/A'}")
+                return "I didn't find sufficiently relevant information in your documents for this question. Try rephrasing your query or ask a more specific question about the content of your files."
 
-            # ОТЛАДКА - показываем какие документы передаем в LLM
-            logger.info(f"Передаем в LLM {len(filtered_docs)} отфильтрованных документов:")
+            # DEBUG - show which documents we're passing to LLM
+            logger.info(f"Passing to LLM {len(filtered_docs)} filtered documents:")
             for i, (doc, score) in enumerate(filtered_docs, 1):
                 filename = doc.metadata.get('filename', 'unknown')
                 logger.info(f"  {i}. {filename} (score: {score:.3f})")
 
-            # ВАЖНО: передаем ТОЛЬКО отфильтрованные документы, НЕ все relevant_docs
+            # IMPORTANT: pass ONLY filtered documents, NOT all relevant_docs
             response = self.llm_handler.generate_response(
                 query=user_question,
-                relevant_docs=filtered_docs  # ТОЛЬКО релевантные!
+                relevant_docs=filtered_docs  # ONLY relevant!
             )
 
             return response
 
         except Exception as e:
-            logger.error(f"Ошибка при обработке запроса: {e}")
-            return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз."
+            logger.error(f"Error processing query: {e}")
+            return "Sorry, an error occurred while processing your request. Please try again."
 
     def query_stream(self, user_question: str, k: int = SEARCH_K):
         """
-        Обрабатывает пользовательский запрос через RAG пайплайн в потоковом режиме
+        Process user query through RAG pipeline in streaming mode
         """
         try:
             if not user_question.strip():
-                yield "Пожалуйста, задайте вопрос."
+                yield "Please ask a question."
                 return
 
-            logger.info(f"Обрабатываем потоковый запрос: {user_question}")
+            logger.info(f"Processing streaming query: {user_question}")
 
-            # Проверяем, является ли это общим приветствием или вопросом
+            # Check if this is a general greeting or question
             general_queries = self._is_general_query(user_question.lower())
 
-            # Поиск релевантных документов
+            # Search for relevant documents
             relevant_docs = self.vector_store.search_similar_documents(
                 query=user_question,
                 k=k
             )
 
-            # Если это общий вопрос и нет релевантных документов, отвечаем дружелюбно
+            # If this is a general question and no relevant documents, respond friendly
             if general_queries and (
                     not relevant_docs or not any(score >= SIMILARITY_THRESHOLD for _, score in relevant_docs)):
                 yield self._handle_general_query(user_question)
                 return
 
             if not relevant_docs:
-                yield "Я специализируюсь на ответах по документам в вашей базе знаний. Попробуйте задать вопрос о содержимом ваших документов."
+                yield "I specialize in answering questions based on documents in your knowledge base. Try asking about the content of your documents."
                 return
 
-            # Фильтруем документы по порогу релевантности
+            # Filter documents by relevance threshold
             filtered_docs = [
                 (doc, score) for doc, score in relevant_docs
                 if score >= SIMILARITY_THRESHOLD
             ]
 
             if not filtered_docs:
-                yield "Я не нашел достаточно релевантной информации в ваших документах для этого вопроса. Попробуйте переформулировать запрос или задать более конкретный вопрос по содержимому ваших файлов."
+                yield "I didn't find sufficiently relevant information in your documents for this question. Try rephrasing your query or ask a more specific question about the content of your files."
                 return
 
-            # Генерируем ответ с помощью LLM в потоковом режиме
+            # Generate response using LLM in streaming mode
             for response_chunk in self.llm_handler.generate_response_stream(
                     query=user_question,
                     relevant_docs=filtered_docs
@@ -184,68 +184,68 @@ class RAGPipeline:
                 yield response_chunk
 
         except Exception as e:
-            logger.error(f"Ошибка при потоковой обработке запроса: {e}")
-            yield "Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз."
+            logger.error(f"Error during streaming query processing: {e}")
+            yield "Sorry, an error occurred while processing your request. Please try again."
 
     def get_system_status(self) -> dict:
         """
-        Получает статус системы
+        Get system status
         """
         try:
-            # Информация о коллекции
+            # Collection information
             collection_info = self.vector_store.get_collection_info()
 
-            # Проверка подключения к OpenAI
+            # Check OpenAI connection
             openai_status = self.llm_handler.check_connection()
 
-            # Проверка существования папки с данными
+            # Check data folder existence
             data_path_exists = Path(DATA_PATH).exists()
 
             return {
                 "vector_store": {
-                    "status": "✅ Работает",
-                    "collection_name": collection_info.get("name", "Неизвестно"),
+                    "status": "✅ Working",
+                    "collection_name": collection_info.get("name", "Unknown"),
                     "documents_count": collection_info.get("document_count", 0),
-                    "embedding_model": collection_info.get("embedding_model", "Неизвестно")
+                    "embedding_model": collection_info.get("embedding_model", "Unknown")
                 },
                 "llm": {
-                    "status": "✅ Работает" if openai_status else "❌ Ошибка подключения",
+                    "status": "✅ Working" if openai_status else "❌ Connection error",
                     "model": self.llm_handler.llm.model_name if hasattr(self.llm_handler.llm,
-                                                                        'model_name') else "Неизвестно"
+                                                                        'model_name') else "Unknown"
                 },
                 "data_path": {
                     "path": DATA_PATH,
-                    "exists": "✅ Существует" if data_path_exists else "❌ Не найдена",
+                    "exists": "✅ Exists" if data_path_exists else "❌ Not found",
                     "files_count": len(list(Path(DATA_PATH).rglob("*"))) if data_path_exists else 0
                 }
             }
 
         except Exception as e:
-            logger.error(f"Ошибка при получении статуса системы: {e}")
+            logger.error(f"Error getting system status: {e}")
             return {
-                "error": f"Ошибка при получении статуса: {str(e)}"
+                "error": f"Status error: {str(e)}"
             }
 
     def clear_vector_store(self) -> dict:
         """
-        Очищает векторное хранилище
+        Clear vector store
         """
         try:
             self.vector_store.clear_collection()
             return {
                 "success": True,
-                "message": "Векторное хранилище очищено"
+                "message": "Vector store cleared"
             }
         except Exception as e:
-            logger.error(f"Ошибка при очистке векторного хранилища: {e}")
+            logger.error(f"Error clearing vector store: {e}")
             return {
                 "success": False,
-                "message": f"Ошибка при очистке: {str(e)}"
+                "message": f"Clearing error: {str(e)}"
             }
 
     def search_documents(self, query: str, k: int = SEARCH_K) -> List[dict]:
         """
-        Поиск документов без генерации ответа (для отладки)
+        Search documents without generating response (for debugging)
         """
         try:
             relevant_docs = self.vector_store.search_similar_documents(query, k)
@@ -255,7 +255,7 @@ class RAGPipeline:
                 results.append({
                     "content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
                     "score": round(score, 3),
-                    "filename": doc.metadata.get("filename", "Неизвестно"),
+                    "filename": doc.metadata.get("filename", "Unknown"),
                     "directory": doc.metadata.get("directory", ""),
                     "chunk_index": doc.metadata.get("chunk_index", 0)
                 })
@@ -263,56 +263,62 @@ class RAGPipeline:
             return results
 
         except Exception as e:
-            logger.error(f"Ошибка при поиске документов: {e}")
+            logger.error(f"Error searching documents: {e}")
             return []
 
     def _is_general_query(self, query: str) -> bool:
         """
-        Определяет, является ли запрос общим приветствием или вопросом
+        Determine if query is a general greeting or question
         """
         general_patterns = [
-            'привет', 'hello', 'hi', 'здравствуй', 'добрый день', 'добрый вечер',
+            'hello', 'hi', 'hey', 'good morning', 'good evening', 'good day',
+            'how are you', 'what can you do', 'help', 'who are you', 'what are you',
+            'thank you', 'thanks', 'bye', 'goodbye', 'see you',
+            'привет', 'здравствуй', 'добрый день', 'добрый вечер',
             'как дела', 'что умеешь', 'помоги', 'кто ты', 'что ты',
-            'спасибо', 'thanks', 'thank you', 'пока', 'bye', 'до свидания'
+            'спасибо', 'пока', 'до свидания'
         ]
 
         return any(pattern in query for pattern in general_patterns)
 
     def _handle_general_query(self, query: str) -> str:
         """
-        Обрабатывает общие запросы без поиска в документах
+        Handle general queries without document search
         """
         query_lower = query.lower()
 
-        if any(word in query_lower for word in ['привет', 'hello', 'hi', 'здравствуй', 'добрый']):
-            return """Привет! 👋 
+        if any(word in query_lower for word in
+               ['hello', 'hi', 'hey', 'good morning', 'good evening', 'good day', 'привет', 'здравствуй', 'добрый']):
+            return """Hello! 👋 
 
-Я ваш ИИ-ассистент для работы с документами. Я могу помочь вам найти информацию в загруженных файлах и ответить на вопросы по их содержимому.
+I'm your AI assistant for working with documents. I can help you find information in uploaded files and answer questions based on their content.
 
-Что я умею:
-• Отвечать на вопросы по содержимому ваших документов
-• Искать конкретную информацию в файлах
-• Анализировать и сравнивать данные из разных документов
+What I can do:
+• Answer questions about the content of your documents
+• Search for specific information in files
+• Analyze and compare data from different documents
 
-Задайте мне вопрос о содержимом ваших файлов, и я постараюсь помочь!"""
+Ask me a question about the content of your files, and I'll try to help!"""
 
-        elif any(word in query_lower for word in ['что умеешь', 'что ты', 'кто ты', 'помоги']):
-            return """Я ваш персональный ассистент для работы с документами! 🤖
+        elif any(word in query_lower for word in
+                 ['what can you do', 'what are you', 'who are you', 'help', 'что умеешь', 'что ты', 'кто ты',
+                  'помоги']):
+            return """I'm your personal assistant for working with documents! 🤖
 
-Мои возможности:
-• 📚 Анализ содержимого ваших документов (TXT, PDF, DOCX, CSV, MD)
-• 🔍 Быстрый поиск информации по всей базе знаний
-• 💡 Ответы на вопросы на основе загруженных файлов
-• 📊 Сравнение и анализ данных из разных документов
+My capabilities:
+• 📚 Analyze content of your documents (TXT, PDF, DOCX, CSV, MD)
+• 🔍 Fast information search across your knowledge base
+• 💡 Answer questions based on uploaded files
+• 📊 Compare and analyze data from different documents
 
-Просто задайте вопрос о содержимом ваших файлов, например:
-"Расскажи об Александре Струнникове" или "Какие продукты у нас есть?" """
+Just ask me a question about the content of your files, for example:
+"Tell me about John Smith" or "What products do we have?" """
 
-        elif any(word in query_lower for word in ['спасибо', 'thanks']):
-            return "Пожалуйста! Рад был помочь. Если у вас есть еще вопросы по документам, обращайтесь! 😊"
+        elif any(word in query_lower for word in ['thank you', 'thanks', 'спасибо']):
+            return "You're welcome! Happy to help. If you have more questions about your documents, feel free to ask! 😊"
 
-        elif any(word in query_lower for word in ['пока', 'bye', 'до свидания']):
-            return "До свидания! Удачи в работе с документами! 👋"
+        elif any(word in query_lower for word in ['bye', 'goodbye', 'see you', 'пока', 'до свидания']):
+            return "Goodbye! Good luck working with your documents! 👋"
 
         else:
-            return "Я готов помочь вам с поиском информации в ваших документах. Задайте конкретный вопрос по содержимому файлов!"
+            return "I'm ready to help you search for information in your documents. Ask a specific question about the content of your files!"
