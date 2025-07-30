@@ -1,46 +1,58 @@
-# 🤖 RAG Система с ChromaDB
+# 🤖 RAG System with ChromaDB
 
-Интеллектуальная система вопросов и ответов на основе ваших документов с использованием ChromaDB, LangChain и Gradio.
+An intelligent question-answering system based on your documents using ChromaDB, LangChain, and Gradio.
 
-## 🌟 Особенности
+## 🌟 Features
 
-- 📚 **Поддержка множества форматов**: TXT, PDF, DOCX, MD, CSV
-- 🗄️ **Векторная база данных**: ChromaDB для быстрого поиска
-- 🤖 **OpenAI GPT**: Интеграция с ChatGPT для генерации ответов
-- 🎨 **Современный интерфейс**: Gradio с интуитивным дизайном
-- 🔍 **Умный поиск**: Семантический поиск по векторным представлениям
-- 📁 **Рекурсивная обработка**: Автоматическая обработка папок и подпапок
+- 📚 **Multiple Format Support**: TXT, PDF, DOCX, MD, CSV
+- 🗄️ **Vector Database**: ChromaDB for fast document search
+- 🤖 **OpenAI GPT Integration**: ChatGPT for intelligent response generation
+- 🎨 **Modern Interface**: Intuitive Gradio web interface
+- 🔍 **Smart Search**: Semantic search using vector embeddings
+- 📁 **Recursive Processing**: Automatic processing of folders and subfolders
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-### 1. Установка с помощью Conda
+### 1. Installation with Conda (Recommended)
 
 ```bash
-# Клонируйте репозиторий или скопируйте файлы
+# Clone the repository
 git clone <your-repo> rag_project
 cd rag_project
 
-# Запустите скрипт установки
-chmod +x setup.sh
-./setup.sh
-
-# Или создайте окружение вручную:
+# Create environment from file
 conda env create -f environment.yml
 conda activate rag_project
 ```
 
-### 2. Настройка OpenAI API
+### 2. Alternative: Installation with Pip
 
-Отредактируйте файл `.env` и добавьте ваш OpenAI API ключ:
+```bash
+# Create virtual environment
+python -m venv rag_env
+
+# Activate environment
+# Windows:
+rag_env\Scripts\activate
+# macOS/Linux:
+source rag_env/bin/activate
+
+# Install packages
+pip install -r requirements.txt
+```
+
+### 3. OpenAI API Setup
+
+Create a `.env` file and add your OpenAI API key:
 
 ```env
 OPENAI_API_KEY=your_actual_openai_api_key_here
 OPENAI_MODEL=gpt-3.5-turbo
 ```
 
-### 3. Подготовка документов
+### 4. Document Preparation
 
-Поместите ваши документы в папку `data/`. Система автоматически обработает все поддерживаемые файлы в папках и подпапках.
+Place your documents in the `data/` folder. The system will automatically process all supported files in folders and subfolders.
 
 ```
 data/
@@ -53,164 +65,153 @@ data/
 └── readme.md
 ```
 
-### 4. Запуск
+### 5. Run the System
 
 ```bash
 conda activate rag_project
 python main.py
 ```
 
-Откройте браузер по адресу: `http://localhost:7860`
+Open your browser at: `http://localhost:7860`
 
-## 📁 Структура проекта
+## 📁 Project Structure
 
 ```
 rag_project/
-├── main.py                 # Gradio интерфейс
-├── environment.yml         # Conda зависимости  
-├── requirements.txt        # pip зависимости
-├── setup.sh               # Скрипт установки
-├── .env                   # Переменные окружения
-├── README.md              # Документация
+├── main.py                 # Gradio interface
+├── environment.yml         # Conda dependencies  
+├── requirements.txt        # pip dependencies
+├── .env                   # Environment variables
+├── README.md              # Documentation
 ├── config/
-│   └── settings.py        # Конфигурация
+│   └── settings.py        # Configuration
 ├── src/
 │   ├── __init__.py
-│   ├── document_loader.py  # Загрузка документов
-│   ├── vector_store.py    # ChromaDB интерфейс
-│   ├── llm_handler.py     # OpenAI интерфейс
-│   └── rag_pipeline.py    # Основная логика
+│   ├── document_loader.py  # Document loading
+│   ├── vector_store.py    # ChromaDB interface
+│   ├── llm_handler.py     # OpenAI interface
+│   └── rag_pipeline.py    # Main logic
 ├── utils/
 │   ├── __init__.py
-│   └── text_processing.py # Обработка текста
-├── data/                  # Ваши документы
-└── chroma_db/            # Векторная база (создается автоматически)
+│   └── text_processing.py # Text processing
+├── data/                  # Your documents
+└── chroma_db/            # Vector database (auto-created)
 ```
 
-## 🎯 Использование
+## 🎯 Usage
 
-### Веб-интерфейс
+### Web Interface
 
-1. **💬 Чат**: Задавайте вопросы по вашим документам
-2. **📚 Управление документами**: Загружайте и управляйте документами
-3. **⚙️ Статус системы**: Мониторинг состояния системы
-4. **🔍 Поиск документов**: Отладка и тестирование поиска
+1. **💬 Chat**: Ask questions about your documents
+2. **📚 Document Management**: Load and manage documents
+3. **⚙️ System Status**: Monitor system status
+4. **🔍 Document Search**: Debug and test search functionality
 
-### Программный интерфейс
+### Programmatic Interface
 
 ```python
 from src.rag_pipeline import RAGPipeline
 
-# Инициализация
+# Initialize
 rag = RAGPipeline()
 
-# Загрузка документов
+# Load documents
 result = rag.load_documents("path/to/your/documents")
 print(result)
 
-# Задание вопроса
-response = rag.query("Как настроить систему?")
+# Ask a question
+response = rag.query("How to configure the system?")
 print(response)
 
-# Статус системы
+# Get system status
 status = rag.get_system_status()
 print(status)
 ```
 
-## ⚙️ Конфигурация
+## ⚙️ Configuration
 
-Основные настройки в `config/settings.py`:
+Main settings in `config/settings.py`:
 
 ```python
-# Размер чанков для разбиения документов
+# Document chunking settings
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
-# Параметры поиска
-SEARCH_K = 5  # Количество релевантных документов
-SIMILARITY_THRESHOLD = 0.7  # Порог релевантности
+# Search parameters
+SEARCH_K = 5  # Number of relevant documents
+SIMILARITY_THRESHOLD = 0.7  # Relevance threshold
 
-# Модель эмбеддингов
+# Embedding model
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
-# OpenAI модель
+# OpenAI model
 OPENAI_MODEL = "gpt-3.5-turbo"
 ```
 
-## 🔧 Поддерживаемые форматы
+## 🔧 Supported Formats
 
-| Формат | Описание | Расширение |
-|--------|----------|------------|
-| **TXT** | Текстовые файлы | `.txt` |
-| **PDF** | PDF документы | `.pdf` |
-| **DOCX** | Word документы | `.docx` |
-| **Markdown** | Markdown файлы | `.md` |
-| **CSV** | Таблицы Excel/CSV | `.csv` |
+| Format | Description | Extension |
+|--------|-------------|-----------|
+| **TXT** | Text files | `.txt` |
+| **PDF** | PDF documents | `.pdf` |
+| **DOCX** | Word documents | `.docx` |
+| **Markdown** | Markdown files | `.md` |
+| **CSV** | Excel/CSV tables | `.csv` |
 
-## 🚨 Устранение неполадок
+## 🚨 Troubleshooting
 
-### Ошибка "OpenAI API key not found"
+### "OpenAI API key not found" Error
 ```bash
-# Проверьте файл .env
+# Check .env file
 cat .env
-# Убедитесь, что OPENAI_API_KEY установлен правильно
+# Make sure OPENAI_API_KEY is set correctly
 ```
 
-### Документы не загружаются
+### Documents Not Loading
 ```bash
-# Проверьте права доступа к папке data/
+# Check data folder permissions
 ls -la data/
-# Убедитесь, что файлы имеют поддерживаемые расширения
+# Make sure files have supported extensions
 ```
 
-### Ошибки с зависимостями
+### Dependency Errors
 ```bash
-# Переустановите окружение
+# Reinstall environment
 conda env remove -n rag_project
 conda env create -f environment.yml
 conda activate rag_project
 ```
 
-## 📊 Производительность
+### PyTorch Issues
+```bash
+# For GPU (NVIDIA):
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-- **Время индексации**: ~1-2 секунды на документ
-- **Время ответа**: ~3-5 секунд на запрос
-- **Поддерживаемый объем**: до 10,000 документов
-- **Требования к памяти**: ~2-4 ГБ RAM
+# For CPU only:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
 
-## 🔒 Безопасность
+## 📊 Performance
 
-- Данные хранятся локально в ChromaDB
-- OpenAI API используется только для генерации ответов
-- Исходные документы не передаются в OpenAI
-- Логи не содержат чувствительную информацию
+- **Indexing time**: ~1-2 seconds per document
+- **Response time**: ~3-5 seconds per query
+- **Supported volume**: up to 10,000 documents
+- **Memory requirements**: ~2-4 GB RAM
 
-## 🤝 Вклад в проект
+## 🔒 Security
 
-1. Форкните репозиторий
-2. Создайте ветку для новой функции
-3. Внесите изменения и добавьте тесты
-4. Отправьте Pull Request
+- Data is stored locally in ChromaDB
+- OpenAI API is only used for response generation
+- Original documents are not sent to OpenAI
+- Logs do not contain sensitive information
 
-## 📝 Лицензия
+## 🤝 Contributing
 
-MIT License - см. файл `LICENSE`
-
-## 🆘 Поддержка
-
-- 📧 **Email**: your-email@example.com
-- 💬 **Issues**: Создайте issue в GitHub
-- 📖 **Документация**: См. комментарии в коде
-
-## 🚀 Планы развития
-
-- [ ] Поддержка других LLM (Anthropic Claude, Local models)
-- [ ] Улучшенная обработка изображений в PDF
-- [ ] Поддержка PowerPoint (.pptx)
-- [ ] Веб-скрапинг для URL
-- [ ] Интеграция с базами данных
-- [ ] Аналитика и метрики
+1. Fork the repository
+2. Create a feature branch
+3. Make changes and add tests
+4. Submit a Pull Request
 
 ---
 
-**Создано с ❤️ для эффективной работы с документами**
+**Built with ❤️ for efficient document processing**
