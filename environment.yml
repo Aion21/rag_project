@@ -1,0 +1,40 @@
+name: rag_project
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Python и базовые пакеты
+  - python=3.10
+  - pandas
+  - numpy
+
+  # Установим через pip БЕЗ точных версий - пусть pip сам решает
+  - pip
+  - pip:
+    # Базовые зависимости (без версий)
+    - python-dotenv
+    - pydantic
+
+    # OpenAI (пусть pip выберет совместимую версию)
+    - tiktoken
+    - openai
+
+    # LangChain (пусть pip сам выберет совместимые версии)
+    - langchain
+    - langchain-community
+    - langchain-openai
+
+    # HuggingFace Hub
+    - huggingface-hub
+
+    # Embeddings и векторная БД
+    - sentence-transformers
+    - chromadb
+
+    # Обработка документов
+    - pypdf
+    - PyPDF2
+    - python-docx
+
+    # Gradio
+    - gradio
