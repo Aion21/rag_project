@@ -17,7 +17,7 @@ An intelligent question-answering system based on your documents using ChromaDB,
 
 ```bash
 # Clone the repository
-git clone <your-repo> rag_project
+git clone https://github.com/Aion21/rag_project.git
 cd rag_project
 
 # Create environment from file
@@ -47,7 +47,7 @@ Create a `.env` file and add your OpenAI API key:
 
 ```env
 OPENAI_API_KEY=your_actual_openai_api_key_here
-OPENAI_MODEL=gpt-3.5-turbo
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 ### 4. Document Preparation
@@ -107,26 +107,6 @@ rag_project/
 3. **⚙️ System Status**: Monitor system status
 4. **🔍 Document Search**: Debug and test search functionality
 
-### Programmatic Interface
-
-```python
-from src.rag_pipeline import RAGPipeline
-
-# Initialize
-rag = RAGPipeline()
-
-# Load documents
-result = rag.load_documents("path/to/your/documents")
-print(result)
-
-# Ask a question
-response = rag.query("How to configure the system?")
-print(response)
-
-# Get system status
-status = rag.get_system_status()
-print(status)
-```
 
 ## ⚙️ Configuration
 
