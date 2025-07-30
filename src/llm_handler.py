@@ -19,21 +19,21 @@ class LLMHandler:
         if not OPENAI_API_KEY or OPENAI_API_KEY == "your_openai_api_key_here":
             raise ValueError("Must set OPENAI_API_KEY in .env file")
 
-        # Устанавливаем переменную окружения для OpenAI
+        # Set environment variable for OpenAI
         os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
-        # МИНИМАЛЬНАЯ инициализация без ВСЕХ дополнительных параметров
+        # MINIMAL initialization without ALL additional parameters
         try:
             self.llm = ChatOpenAI(
                 model=OPENAI_MODEL or "gpt-3.5-turbo"
-                # ТОЛЬКО model - никаких других параметров!
+                # ONLY model - no other parameters!
             )
             logger.info(f"✅ LLM initialized successfully with model: {OPENAI_MODEL}")
         except Exception as e:
             logger.error(f"❌ Error initializing LLM: {e}")
-            # Fallback с только базовыми настройками
+            # Fallback with only basic settings
             try:
-                self.llm = ChatOpenAI()  # Вообще без параметров
+                self.llm = ChatOpenAI()  # No parameters at all
                 logger.info("✅ LLM initialized with default settings")
             except Exception as e2:
                 logger.error(f"❌ Fallback also failed: {e2}")
@@ -140,25 +140,25 @@ Answer the question using only the provided information from the documents.
 
             logger.info("[LLM STREAM] Starting real streaming from OpenAI...")
 
-            # НАСТОЯЩИЙ streaming от OpenAI
+            # REAL streaming from OpenAI
             accumulated_response = ""
             chunk_count = 0
 
             try:
-                # Используем stream метод LangChain
+                # Use LangChain stream method
                 for chunk in self.llm.stream(messages):
                     chunk_count += 1
                     if hasattr(chunk, 'content') and chunk.content:
                         accumulated_response += chunk.content
                         yield accumulated_response
 
-                    # Логируем каждые 10 чанков
+                    # Log every 10 chunks
                     if chunk_count % 10 == 0:
                         logger.info(f"[LLM STREAM] Received {chunk_count} chunks...")
 
             except Exception as stream_error:
                 logger.error(f"[LLM STREAM] Streaming failed: {stream_error}")
-                # Fallback на обычную генерацию
+                # Fallback to regular generation
                 logger.info("[LLM STREAM] Falling back to regular generation...")
                 full_response = self.generate_response(query, relevant_docs)
                 yield full_response
@@ -202,52 +202,6 @@ Content:
             return "No relevant documents for this query."
 
         return "\n".join(context_parts)
-
-    def _format_sources_info(self, relevant_docs: List[Tuple[Document, float]]) -> str:
-        """
-        Format source information (only documents above threshold)
-        """
-        from config.settings import SIMILARITY_THRESHOLD
-
-        sources = []
-        seen_sources = set()
-
-        # STRICTLY filter documents by threshold
-        truly_relevant_docs = [
-            (doc, score) for doc, score in relevant_docs
-            if score >= SIMILARITY_THRESHOLD
-        ]
-
-        # If too many documents, take only top-2 most relevant
-        if len(truly_relevant_docs) > 2:
-            truly_relevant_docs = truly_relevant_docs[:2]
-            logger.info(f"[SOURCES] Limiting to top-2 documents from {len(relevant_docs)}")
-
-        logger.info(f"[SOURCES] Original documents: {len(relevant_docs)}")
-        logger.info(f"[SOURCES] Relevant (>={SIMILARITY_THRESHOLD}): {len(truly_relevant_docs)}")
-
-        for doc, score in truly_relevant_docs:
-            filename = doc.metadata.get('filename', 'Unknown file')
-            directory = doc.metadata.get('directory', '')
-
-            logger.info(f"[SOURCES] Adding to sources: {filename} (score: {score:.3f})")
-
-            source_key = f"{filename}|{directory}"
-            if source_key not in seen_sources:
-                seen_sources.add(source_key)
-                if directory:
-                    # Show only folder name without full path
-                    dir_name = directory.split('/')[-1] if '/' in directory else directory
-                    sources.append(f"{filename} (folder: {dir_name})")
-                else:
-                    sources.append(filename)
-
-        if sources:
-            logger.info(f"[SOURCES] Final sources: {sources}")
-            return f"**Sources:** {', '.join(sources)}"
-        else:
-            logger.warning("[SOURCES] No relevant sources!")
-            return "**Sources:** no relevant documents found"
 
     def check_connection(self) -> bool:
         """

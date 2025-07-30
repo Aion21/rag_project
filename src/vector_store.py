@@ -203,13 +203,3 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error clearing collection: {e}")
             raise
-
-    def document_exists(self, doc_hash: str) -> bool:
-        """
-        Check if document exists by hash
-        """
-        try:
-            results = self.collection.get(ids=[f"doc_hash_{doc_hash}"])
-            return len(results['ids']) > 0
-        except:
-            return False
