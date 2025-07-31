@@ -28,12 +28,29 @@ class VectorStore:
                 metadata={"description": "RAG documents"}
             )
 
-    def add_documents(self, documents: List[Document]) -> None:
+    def add_documents(self, documents: List[Document]) -> int:
         """Add documents to vector store"""
         if not documents:
-            return
+            return 0
+            0
+
+        # Get existing document IDs to avoid duplicates
+        try:
+            existing_result = self.collection.get(include=['metadatas'])
+
+            # Create set of existing document identifiers
+            existing_docs = set()
+            if existing_result.get('metadatas'):
+                for metadata in existing_result['metadatas']:
+                    source = metadata.get('source', '')
+                    chunk_idx = metadata.get('chunk_index', 0)
+                    doc_identifier = f"{source}__chunk_{chunk_idx}"
+                    existing_docs.add(doc_identifier)
+        except:
+            existing_docs = set()
 
         batch_size = 100
+        new_documents_count = 0
 
         for i in range(0, len(documents), batch_size):
             batch = documents[i:i + batch_size]
@@ -43,21 +60,53 @@ class VectorStore:
             ids = []
 
             for j, doc in enumerate(batch):
+                # Create STABLE ID based on file path and chunk index
+                source = doc.metadata.get('source', '')
+                chunk_idx = doc.metadata.get('chunk_index', 0)
+
+                # Create identifier to check for duplicates
+                doc_identifier = f"{source}__chunk_{chunk_idx}"
+
+                # Skip if document already exists
+                if doc_identifier in existing_docs:
+                    continue
+
+                # Create unique ID for ChromaDB (must be unique)
+                doc_id = f"doc_{len(existing_docs) + len(ids)}_{hash(doc_identifier) % 1000000}"
+
                 texts.append(doc.page_content)
                 metadatas.append(doc.metadata)
-                doc_id = f"doc_{i + j}_{hash(doc.page_content) % 1000000}"
                 ids.append(doc_id)
 
-            try:
-                embeddings = self.embedding_model.encode(texts).tolist()
-                self.collection.add(
-                    documents=texts,
-                    metadatas=metadatas,
-                    ids=ids,
-                    embeddings=embeddings
-                )
-            except:
-                continue
+                # Add to existing set to avoid duplicates within this batch
+                existing_docs.add(doc_identifier)
+
+            # Only add if we have new documents
+            if texts:
+                try:
+                    embeddings = self.embedding_model.encode(texts).tolist()
+                    self.collection.add(
+                        documents=texts,
+                        metadatas=metadatas,
+                        ids=ids,
+                        embeddings=embeddings
+                    )
+                    new_documents_count += len(texts)
+                except Exception as e:
+                    # If batch fails, try adding documents one by one
+                    for k in range(len(texts)):
+                        try:
+                            self.collection.add(
+                                documents=[texts[k]],
+                                metadatas=[metadatas[k]],
+                                ids=[ids[k]],
+                                embeddings=[embeddings[k]]
+                            )
+                            new_documents_count += 1
+                        except:
+                            continue
+
+        return new_documents_count
 
     def search_similar_documents(self, query: str, k: int = SEARCH_K) -> List[Tuple[Document, float]]:
         """Search for similar documents"""
@@ -118,11 +167,12 @@ class VectorStore:
                 "document_count": count,
                 "embedding_model": EMBEDDING_MODEL
             }
-        except:
+        except Exception as e:
             return {
                 "name": COLLECTION_NAME,
                 "document_count": 0,
-                "embedding_model": EMBEDDING_MODEL
+                "embedding_model": EMBEDDING_MODEL,
+                "error": str(e)
             }
 
     def clear_collection(self) -> None:

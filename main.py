@@ -35,6 +35,11 @@ def get_system_status_text():
 
     try:
         status = rag_pipeline.get_system_status()
+
+        # Check if there's a general error
+        if "error" in status:
+            return f"❌ System Error: {status['error']}"
+
         return f"""
 ## 📊 System Status
 
@@ -52,6 +57,10 @@ def get_system_status_text():
 - Path: {status['data_path']['path']}
 - Exists: {status['data_path']['exists']}
 - Files found: {status['data_path']['files_count']}
+
+### 🗣️ Conversation
+- History length: {status['conversation']['history_length']}
+- Max history: {status['conversation']['max_history']}
 """
     except Exception as e:
         return f"❌ Error getting status: {str(e)}"
@@ -94,15 +103,43 @@ def search_documents_interface(query, k):
         return f"❌ Error: {str(e)}"
 
 
-def respond_to_user(message, history):
-    """Main chat function"""
+def respond_to_user_with_history(message, history):
+    """Chat function with conversation history"""
     if not rag_pipeline or not message.strip():
         return "❌ RAG Pipeline not initialized" if not rag_pipeline else "Please ask a question."
 
     try:
-        return rag_pipeline.query(message)
+        return rag_pipeline.query_with_history(message)
     except Exception as e:
         return f"❌ An error occurred: {str(e)}"
+
+
+def clear_conversation_history():
+    """Clear conversation history"""
+    if not rag_pipeline:
+        return "❌ RAG Pipeline not initialized"
+
+    result = rag_pipeline.clear_conversation_history()
+    return f"✅ {result['message']}" if result["success"] else f"❌ {result['message']}"
+
+
+def get_conversation_history():
+    """Get conversation history for display"""
+    if not rag_pipeline:
+        return "❌ RAG Pipeline not initialized"
+
+    history = rag_pipeline.get_conversation_history()
+    if not history:
+        return "📭 No conversation history"
+
+    history_text = "📜 **Conversation History:**\n\n"
+    for i, turn in enumerate(history, 1):
+        history_text += f"**Turn {i}:** _{turn.get('timestamp', 'Unknown time')}_\n"
+        history_text += f"👤 **User:** {turn['question']}\n"
+        history_text += f"🤖 **Assistant:** {turn['answer']}\n\n"
+        history_text += "---\n\n"
+
+    return history_text
 
 
 def create_interface():
@@ -176,49 +213,64 @@ def create_interface():
     """
 
     with gr.Blocks(title="🤖 RAG System", css=custom_css) as interface:
-        # Header
         gr.HTML("""
         <div class="header-container">
-            <h1 class="header-title">🤖 RAG System with ChromaDB</h1>
-            <p class="header-subtitle">Intelligent question-answering system based on your documents</p>
+            <h1 class="header-title">🤖 RAG System with Memory</h1>
+            <p class="header-subtitle">Intelligent conversational AI that remembers your dialogue</p>
         </div>
         """)
 
         with gr.Tab("💬 Chat"):
-            gr.Markdown("### 💬 Chat with your documents")
-            gr.Markdown("*Ask questions about your uploaded documents and get intelligent responses*")
+            with gr.Column(elem_classes="tabitem"):
+                gr.Markdown("### 💬 Conversational Chat with Memory")
+                gr.Markdown("*I remember our conversation and can reference previous messages naturally*")
 
-            chatbot = gr.Chatbot(label="Chat History", height=500)
+                chatbot = gr.Chatbot(label="Chat", height=500)
 
-            with gr.Row():
-                msg = gr.Textbox(
-                    label="Your message",
-                    placeholder="Ask a question about your documents...",
-                    scale=4,
-                    container=False
-                )
-                submit_btn = gr.Button("Send 📤", variant="primary", scale=1, elem_classes="custom-button")
+                with gr.Row():
+                    msg = gr.Textbox(
+                        label="Your message",
+                        placeholder="Ask me anything about your documents",
+                        scale=4,
+                        container=False
+                    )
+                    submit_btn = gr.Button("Send 💬", variant="primary", scale=1, elem_classes="custom-button")
 
-            clear_btn = gr.Button("Clear Chat 🗑️", variant="secondary", elem_classes="custom-button")
+                with gr.Row():
+                    clear_chat_btn = gr.Button("Clear Chat 🗑️", variant="secondary", elem_classes="custom-button")
+                    clear_memory_btn = gr.Button("Clear Memory 🧠", variant="secondary", elem_classes="custom-button")
+                    show_history_btn = gr.Button("Show History 📜", variant="secondary", elem_classes="custom-button")
 
-            def user_message(message, history):
-                return "", history + [[message, None]] if message.strip() else ("", history)
+                history_display = gr.Markdown(label="Conversation History",
+                                              value="*Click 'Show History' to see our conversation...*")
 
-            def bot_response(history):
-                if not history or not history[-1][0]:
+                # Chat handlers
+                def user_message(message, history):
+                    return "", history + [[message, None]] if message.strip() else ("", history)
+
+                def bot_response(history):
+                    if not history or not history[-1][0]:
+                        return history
+                    user_msg = history[-1][0]
+                    response = respond_to_user_with_history(user_msg, history)
+                    history[-1][1] = response
                     return history
-                user_msg = history[-1][0]
-                response = respond_to_user(user_msg, history)
-                history[-1][1] = response
-                return history
 
-            def clear_chat():
-                return [], ""
+                def clear_chat():
+                    return [], ""
 
-            msg.submit(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(bot_response, chatbot, chatbot)
-            submit_btn.click(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(bot_response, chatbot,
-                                                                                             chatbot)
-            clear_btn.click(clear_chat, outputs=[chatbot, msg], queue=False)
+                def clear_memory():
+                    clear_conversation_history()
+                    return "✅ Conversation memory cleared! I won't remember our previous discussion."
+
+                # Connect events
+                msg.submit(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(bot_response, chatbot,
+                                                                                           chatbot)
+                submit_btn.click(user_message, [msg, chatbot], [msg, chatbot], queue=False).then(bot_response, chatbot,
+                                                                                                 chatbot)
+                clear_chat_btn.click(clear_chat, outputs=[chatbot, msg], queue=False)
+                clear_memory_btn.click(clear_memory, outputs=[history_display])
+                show_history_btn.click(get_conversation_history, outputs=[history_display])
 
         with gr.Tab("📚 Documents"):
             with gr.Column(elem_classes="tabitem"):
@@ -275,18 +327,18 @@ def create_interface():
 
 def main():
     """Main function to start the application"""
-    print("🚀 Starting RAG system...")
+    print("🚀 Starting RAG system with conversation memory...")
 
-    # Create necessary folders
     os.makedirs(DATA_PATH, exist_ok=True)
     os.makedirs("chroma_db", exist_ok=True)
 
-    # Create and launch interface
     interface = create_interface()
 
     print(f"🌐 Starting Gradio interface on port {GRADIO_PORT}")
     print(f"📂 Data folder: {DATA_PATH}")
     print(f"🗄️ Database folder: chroma_db/")
+    print(f"🗣️ Conversation memory enabled!")
+    print(f"💡 The AI will remember your conversation context!")
 
     interface.launch(
         share=GRADIO_SHARE,
